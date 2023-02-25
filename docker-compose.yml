@@ -1,0 +1,49 @@
+version: "3.9"
+
+networks:
+  at_dev:
+    name: ${GUID}
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.31.${NETWORK_ADDR_TAIL:-1}.0/24"
+
+volumes:
+  db_data:
+
+services:
+  rdb:
+    container_name: ${GUID}-rdb
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: main
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - at_dev
+  app:
+    container_name: ${GUID}-app
+    image: golang:1.19.5
+    # build:
+    #   context: ./
+    #   dockerfile: ./src/Dockerfile
+    working_dir: /var/www
+    # command: tail -f /dev/null
+    command: go run .
+    ports:
+      - "80:80"
+    environment:
+      DB_DSN: "host=rdb user=test password=test dbname=main port=5432 sslmode=disable"
+    volumes:
+      - ./src:/var/www:cached
+    depends_on:
+      - rdb
+    networks:
+     - at_dev
